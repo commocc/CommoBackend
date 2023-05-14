@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Network</title>
+    <script
+            type="text/javascript"
+            src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"
+    ></script>
+    <style type="text/css">
+        #mynetwork {
+            width: 1000px;
+            height: 1200px;
+            border: 1px solid lightgray;
+        }
+    </style>
+</head>
+<body>
+<div id="mynetwork"></div>
+<script type="text/javascript">
+    // create a network
+    var container = document.getElementById("mynetwork");
+    var options = {};
+    var network = new vis.Network(container, {}, options);
+
+    // make a request to the RedisGraph API endpoint
+    fetch("http://localhost:8000/graph/query", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            command: "MATCH (u:Human)-[:INVITED]->(:Human {name: 'Ural'}) MATCH (u)-[:JOIN]->(:Community {name: 'Bashkortostan'}) RETURN u",
+            graph: "social",
+            limit: 100
+        }),
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            // create an array with nodes and edges
+            var nodes = new vis.DataSet();
+            var edges = new vis.DataSet();
+            var rows = data;
+            for (var i = 0; i < rows.length; i++) {
+                var row = rows[i];
+                // extract the node and edge information from the row
+                var node1 = row[0];
+                var node2 = row[2];
+                var edge = row[1];
+                // add the nodes and edges to the datasets
+                var nodeId1 = "Community_" + node1.id;
+                var nodeId2 = "Project_" + node2.id;
+                if (!nodes.get(nodeId1)) {
+                    nodes.add({
+                        id: nodeId1,
+                        label: node1.properties.name,
+                        color: {background: "red", border: "black"},
+                        font: {size: 12},
+                    });
+                }
+                if (!nodes.get(nodeId2)) {
+                    nodes.add({
+                        id: nodeId2,
+                        label: node2.properties.name,
+                        color: {background: "#47d5da", border: "black"},
+                        font: {size: 12},
+                    });
+                }
+                if (!edges.get(edge.id)) {
+                    edges.add({
+                        id: edge.id,
+                        from: nodeId1,
+                        to: nodeId2,
+                        label: edge.type,
+                        font: {size: 10},
+                    });
+                }
+            }
+            // set the data and options for the network
+            var data = {
+                nodes: nodes,
+                edges: edges,
+            };
+            var options = {
+                nodes: {
+                    shape: "box",
+                    shadow: {
+                        enabled: true,
+                        color: "rgba(0, 0, 0, 0.5)",
+                        size: 10,
+                        x: 5,
+                        y: 5,
+                    },
+                },
+                edges: {
+                    arrows: {
+                        to: {
+                            enabled: true,
+                            scaleFactor: 1,
+                        },
+                    },
+                },
+                physics: {
+                    stabilization: false,
+                },
+                interaction: {
+                    tooltipDelay: 200,
+                    hideEdgesOnDrag: true,
+                },
+            };
+            network.setData(data);
+            network.setOptions(options);
+            network.redraw();
+        })
+        .catch((error) => console.log(error));
+
+</script>
+</body>
+</html>

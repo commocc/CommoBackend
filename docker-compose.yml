@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  fastapi: &fastapi
+    build:
+      context: .
+      dockerfile: DockerfileGdal
+    image: backend_fastapi
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+    ports:
+      - "8050:8000"
+    command: uvicorn config.asgi:fastapp --reload --host 0.0.0.0 --port 8000
+
+  telega:
+    <<: *fastapi
+    ports: []
+    command: python3 bots/community.py
+
+  django:
+    <<: *fastapi
+    image: backend_django
+    ports:
+      - "8051:8000"
+#    command: python manage.py runserver 0.0.0.0:8000 --settings=config.settings
+    command: uvicorn config.asgi:application --reload --host 0.0.0.0 --port 8000 --lifespan off
+
+  postgres_gis:
+    build:
+      context: compose/postgres
+      dockerfile: ./DockerfileGis
+    image: postgres_gis
+    restart: unless-stopped
+    volumes:
+      - .docker/postgres_gis/data:/var/lib/postgresql/data
+      - .docker/postgres_gis/backup:/backups
+    ports:
+      - "5452:5432"
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+    healthcheck:
+      test: pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 10s
+      timeout: 2s
+      retries: 10
+#    command: postgres -c 'max_connections=1000'
+
+
+  redis-stack:
+    image: redis/redis-stack-server:6.2.6-v5
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - .docker/redis_stack:/data
+      - ./config/local-redis-stack.conf:/redis-stack.conf
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ 'CMD', 'redis-cli', 'ping' ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
